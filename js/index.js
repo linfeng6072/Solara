@@ -821,56 +821,40 @@ const API = {
     },
 
     getRadarPlaylist: async (playlistId = "3778678", options = {}) => {
-        const signature = API.generateSignature();
-
+        // GD Studio API 不支持 types=playlist，改用 search 方式
+        // 根据 playlistId 选择对应的热歌榜关键词
+        const playlistKeywords = {
+            "3778678": "网易云热歌榜",
+            "3779629": "网易云新歌榜",
+            "19723756": "网易云飙升榜",
+        };
+        const keyword = playlistKeywords[playlistId] || "网易云热歌榜";
+        
         let limit = 50;
-        let offset = 0;
-
         if (typeof options === "number") {
             limit = options;
         } else if (options && typeof options === "object") {
-            if (Number.isFinite(options.limit)) {
-                limit = options.limit;
-            } else if (Number.isFinite(options.count)) {
-                limit = options.count;
-            }
-            if (Number.isFinite(options.offset)) {
-                offset = options.offset;
-            }
+            if (Number.isFinite(options.limit)) limit = options.limit;
         }
-
         limit = Math.max(1, Math.min(200, Math.trunc(limit)) || 50);
-        offset = Math.max(0, Math.trunc(offset) || 0);
 
-        const params = new URLSearchParams({
-            types: "playlist",
-            id: playlistId,
-            limit: String(limit),
-            offset: String(offset),
-            s: signature,
-        });
-        const url = `${API.baseUrl}?${params.toString()}`;
-
-        try {
-            const data = await API.fetchJson(url);
-            const tracks = data && data.playlist && Array.isArray(data.playlist.tracks)
-                ? data.playlist.tracks.slice(0, limit)
-                : [];
-
-            if (tracks.length === 0) throw new Error("No tracks found");
-
-            return tracks.map(track => ({
-                id: track.id,
-                name: track.name,
-                artist: Array.isArray(track.ar) ? track.ar.map(artist => artist.name).join(" / ") : "",
-                source: "netease",
-                lyric_id: track.id,
-                pic_id: track.al?.pic_str || track.al?.pic || track.al?.picUrl || "",
-            }));
-        } catch (error) {
-            console.error("API request failed:", error);
-            throw error;
+        // 使用 search 类型获取歌曲
+        const results = await API.search(keyword, "netease", limit, 1);
+        
+        if (!Array.isArray(results) || results.length === 0) {
+            throw new Error("No tracks found");
         }
+
+        return results.map(song => ({
+            id: song.id,
+            name: song.name,
+            artist: Array.isArray(song.artist) ? song.artist.join(" / ") : (song.artist || ""),
+            source: song.source || "netease",
+            lyric_id: song.lyric_id || song.id,
+            pic_id: song.pic_id || song.pic || "",
+            url_id: song.url_id,
+            album: song.album || "",
+        }));
     },
 
     getSongUrl: (song, quality = "320") => {
