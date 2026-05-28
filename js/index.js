@@ -5972,3 +5972,47 @@ function showNotification(message, type = "success") {
         notification.classList.remove("show");
     }, 3000);
 }
+
+// ===== 自动加载网易云每日热歌榜 =====
+document.addEventListener('DOMContentLoaded', async () => {
+    // 等待一下确保 API 已初始化
+    await new Promise(r => setTimeout(r, 500));
+    
+    try {
+        console.log('🎵 正在加载网易云每日热歌榜...');
+        
+        // 网易云热歌榜 ID: 3778678，获取前50首
+        const hotSongs = await API.getRadarPlaylist("3778678", { limit: 50 });
+        
+        if (hotSongs && hotSongs.length > 0) {
+            // 将热歌榜歌曲写入播放列表
+            state.playlistSongs = hotSongs.map(track => ({
+                id: track.id,
+                name: track.name,
+                artist: Array.isArray(track.artist) ? track.artist.join(" / ") : (track.artist || "未知艺术家"),
+                album: track.album || "",
+                source: "netease",
+                lyric_id: track.id,
+                pic_id: track.pic_id || "",
+            }));
+            
+            // 设置播放状态
+            state.currentPlaylist = "playlist";
+            state.currentList = "playlist";
+            state.currentTrackIndex = 0;
+            
+            // 渲染播放列表
+            renderPlaylist();
+            savePlayerState();
+            
+            console.log(`✅ 已加载网易云热歌榜，共 ${state.playlistSongs.length} 首歌曲`);
+            
+            // 自动播放第一首
+            await playPlaylistSong(0);
+        } else {
+            console.warn('⚠️ 热歌榜返回空列表');
+        }
+    } catch (error) {
+        console.warn('⚠️ 加载热歌榜失败:', error);
+    }
+});
